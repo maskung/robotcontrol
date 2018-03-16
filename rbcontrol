@@ -1,0 +1,272 @@
+#define data  A5  
+#define ck    A3  
+#define lt    A4  
+#define PWM_DRV    6
+#define PWM_SUB    5
+//----------------------------------------------
+#include <Servo.h>
+Servo servo1; Servo servo2; Servo servo3;
+int dx1=90 , dx2=90  , dx3=90;
+//----------------------------------------------
+#include <PS2X_lib.h>  // เรียกใช้ไลบารี่ของ PS2
+PS2X ps2x;         // กำหนดชื่อเรียกของ PS2 
+int error = 0; 
+byte type = 0;
+//----------------------------------------------
+int power = 100 ;     // (0-255)
+int bit_595=0;
+void setup(){
+  Serial.begin(9600);
+ set_robot();
+ set_joy();    //  เปิดการใช้งาน และเชื่อมต่อกับกล่องรับสัญญาณ
+ sw_start();
+ servo_on();
+ ClearAll();  
+}
+void loop(){     
+  
+   if(error == 1) //skip loop if no controller found
+     return;   
+    ps2x.read_gamepad(false, false);       //  อ่านค่าการกดปุ่ม
+//----------------Test Motor with wireless--------------
+     if(ps2x.Button(PSB_PAD_UP)) {         //  ตรวจสอบการกดปุ่ม UP เพื่อให้หุ่นยนต์ตรงไป
+       Serial.println("Up : ");   FF(power);    
+      }else            
+      if(ps2x.Button(PSB_PAD_DOWN)){       //  ตรวจสอบการกดปุ่ม DOWN เพื่อให้หุ่นยนต์ถอยหลัง  
+       Serial.println("DOWN : "); RV(power);
+      }else
+      if(ps2x.Button(PSB_PAD_LEFT)){       //  ตรวจสอบการกดปุ่ม LEFT เพื่อให้หุ่นยนต์หมุนซ้าย
+       Serial.println("LEFT : "); RR(power); 
+      }else
+      if(ps2x.Button(PSB_PAD_RIGHT)){     //  ตรวจสอบการกดปุ่ม RIGHT เพื่อให้หุ่นยนต์หมุนขวา
+       Serial.println("Right : "); LL(power); 
+      }else  STOP();      
+//----------------Test Sub Motor with wireless--------------      
+     if(ps2x.Button(PSB_TRIANGLE)) {         
+       Serial.println("SUB M1 FF : "); M1_FF(power);    
+      }else            
+      if(ps2x.Button(PSB_SQUARE)){         
+       Serial.println("SUB M1 RV : "); M1_RV(power);
+      }else
+      if(ps2x.Button(PSB_CIRCLE)){ 
+       Serial.println("SUB M2 FF : "); M2_FF(power); 
+      }else
+      if(ps2x.Button(PSB_CROSS)){        
+       Serial.println("SUB M2 RV : "); M2_RV(power); 
+      }else  
+      {     M1_STOP();  
+            M2_STOP();    
+      }      
+//----------------Test Servo Motor with wireless--------------      
+     if(ps2x.Button(PSB_L1)) {         
+       Serial.println("SERVO1 UP : ");   dx1=160;  servo1.write(dx1);  
+      }else            
+      if(ps2x.Button(PSB_R1)){         
+       Serial.println("SERVO1 DOWN : ");   dx1=0;  servo1.write(dx1);
+      }
+      if(1){
+        int val = ps2x.Analog(PSS_LX);
+        Serial.print("Stick Values:");
+        Serial.println(val ,  DEC);
+        dx2 = map(val , 0 , 255 , 0 , 160);
+        servo2.write(dx2);  delay(10);
+      }
+      if(1){
+        int val = ps2x.Analog(PSS_RX);
+        Serial.print("Stick Values:");
+        Serial.println(val ,  DEC);
+        dx3 = map(val , 0 , 255 , 0 , 160);
+        servo3.write(dx3);  delay(10);
+      }
+
+      
+       
+
+
+
+delay(20);
+}
+//--------------------------------------------
+void set_joy()
+{
+ //CHANGES for v1.6 HERE!!! **************PAY ATTENTION*************
+  delay(1000);
+  error=1;
+while(error!=0)  
+{ Serial.println("Chk JOY PS2.....");   
+  delay(200);  beep();   delay(200);  //beep(); 
+ error = ps2x.config_gamepad(12,9,10,8, false , false );   //  false  setup pins and settings:  GamePad(clock, command, attention, data, Pressures?, Rumble?) check for error
+ 
+ if(error == 0){
+   Serial.println("Found Controller, configured successful");
+   Serial.println("Try out all the buttons, X will vibrate the controller, faster as you press harder;");
+  Serial.println("holding L1 or R1 will print out the analog stick values.");
+  Serial.println("Go to www.billporter.info for updates and to report bugs.");
+ }
+   
+  else if(error == 1)
+   Serial.println("No controller found, check wiring, see readme.txt to enable debug. visit www.billporter.info for troubleshooting tips");
+   
+  else if(error == 2)
+   Serial.println("Controller found but not accepting commands. see readme.txt to enable debug. Visit www.billporter.info for troubleshooting tips");
+   
+  else if(error == 3)
+   Serial.println("Controller refusing to enter Pressures mode, may not support it. ");  
+   
+   type = ps2x.readType(); 
+     switch(type) {
+       case 0:
+        Serial.println("Unknown Controller type");
+       break;
+       case 1:
+        Serial.println("DualShock Controller Found");
+       break;
+       case 2:
+         Serial.println("GuitarHero Controller Found");
+       break;
+     }
+     
+}
+delay(1000);
+beep(); delay(100);
+beep(); delay(200);
+//beep(); delay(300);
+     }
+
+
+
+void set_robot()
+  {
+      int buz=A0 ,sw=0;
+      pinMode(buz , OUTPUT );     digitalWrite(buz , HIGH );
+      pinMode(sw , INPUT );       digitalWrite(sw , HIGH );
+      
+      pinMode(PWM_DRV , OUTPUT );
+      pinMode(PWM_SUB , OUTPUT );      
+      
+      //**************************************************
+       pinMode(data , OUTPUT);
+       pinMode(ck , OUTPUT);
+       pinMode(lt , OUTPUT);   
+       digitalWrite(data , HIGH);
+       digitalWrite(ck , HIGH);
+       digitalWrite(lt , HIGH);
+       ClearAll(); 
+  }
+  //---------------------------------------------------
+  void out_595(unsigned char u )
+{    
+     digitalWrite(lt , LOW);
+     shiftOut(data , ck , MSBFIRST , u );
+     digitalWrite(lt , HIGH);
+}
+void  MR_FF(int p){  
+    bit_595 &= 0B11110011 ;      
+    bit_595 |= 0B00001000 ;
+    out_595(bit_595); analogWrite(PWM_DRV , p ); //xxxx = LLRR      
+  }
+void  MR_RV(int p){  
+   bit_595 &= 0B11110011 ;      
+   bit_595 |= 0B00000100 ;
+    out_595(bit_595);  analogWrite(PWM_DRV , p );//xxxx = LLRR    
+  }  
+void  MR_STOP(){  
+   bit_595 &= 0B11110011 ;      
+   bit_595 |= 0B00001100 ;
+    out_595(bit_595);  analogWrite(PWM_DRV , 255 );//xxxx = LLRR    
+  }    
+//++++++++++++++++++++++++++++++++++++++  
+void  ML_RV(int p){
+   bit_595 &= 0B11111100 ;      
+   bit_595 |= 0B00000001 ;
+    out_595(bit_595);  analogWrite(PWM_DRV , p );//xxxx = LLRR   
+  }
+void  ML_FF(int p){
+   bit_595 &= 0B11111100 ;      
+   bit_595 |= 0B00000010 ;
+    out_595(bit_595);  analogWrite(PWM_DRV , p );//xxxx = LLRR
+  }
+void  ML_STOP(){
+   bit_595 &= 0B11111100 ;      
+   bit_595 |= 0B00000011 ;
+    out_595(bit_595);  analogWrite(PWM_DRV , 255 );//xxxx = LLRR
+  }      
+  /////////..........................................................
+void FF(int p){
+     ML_FF(p);     MR_FF(p);
+}
+void RV(int p){
+     ML_RV(p);     MR_RV(p);   
+}
+void RR(int p){
+     ML_FF(p);     MR_RV(p);
+}
+void LL(int p){
+     ML_RV(p);     MR_FF(p);      
+}
+void STOP(){    
+     ML_STOP();     MR_STOP();      
+}
+//____________________________________________________________________________
+void M1_FF(int p){
+  bit_595 &= 0B00111111 ;      
+  bit_595 |= 0B10000000 ;
+  out_595(bit_595);  analogWrite(PWM_SUB , p );  //out_595(0B10000000);  
+} 
+void M1_RV(int p){
+  bit_595 &= 0B00111111 ;      
+  bit_595 |= 0B01000000 ;
+  out_595(bit_595);  analogWrite(PWM_SUB , p );  //out_595(0B01000000);  
+} 
+void M1_STOP(){
+  bit_595 &= 0B00111111 ;      
+  bit_595 |= 0B11000000 ;
+  out_595(bit_595);  analogWrite(PWM_SUB , 255 ); //out_595(0B11000000);  
+} 
+
+void M2_FF(int p){
+  bit_595 &= 0B11001111 ;      
+  bit_595 |= 0B00100000 ;
+  out_595(bit_595);  analogWrite(PWM_SUB , p );  //out_595(0B00100000);  
+} 
+void M2_RV(int p){
+  bit_595 &= 0B11001111 ;      
+  bit_595 |= 0B00010000 ;
+  out_595(bit_595);  analogWrite(PWM_SUB , p ); //  out_595(0B00010000);  
+} 
+
+void M2_STOP(){
+  bit_595 &= 0B11001111 ;      
+  bit_595 |= 0B00110000 ;
+  out_595(bit_595);  analogWrite(PWM_SUB , 255 ); // out_595(0B00110000);  
+} 
+//____________________________________________________________________________
+void ClearAll(){
+   analogWrite(PWM_DRV , 0 ); 
+   analogWrite(PWM_SUB , 0 );  
+   bit_595=0;    out_595(bit_595);
+   delay(1);
+}
+
+
+//============================================================  
+void  servo_on()
+    {  servo1.attach(7);  servo2.attach(4);  servo3.attach(2);
+    }
+//============================================================  
+
+
+/////////////////////////////////////////////////////////
+void beep(void){
+int i=200;
+while(i--){ 
+    digitalWrite(A0 , HIGH);  delayMicroseconds(400);
+    digitalWrite(A0 , LOW);   delayMicroseconds(70);
+  } }    
+void sw_start()
+{      while(digitalRead(0))  ClearAll();      
+        beep(); 
+       while(!digitalRead(0))  delay(500);
+
+} 
+  
